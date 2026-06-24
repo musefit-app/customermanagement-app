@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MUSE FIT 統合顧客カルテシステム</title>
+  <style>
+    /* 女性スタッフに好まれる上品なラベンダーとニュートラルなグレーを基調としたモダンデザイン */
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f6f9; color: #333; margin: 0; padding: 0; }
+    
+    /* スマホ画面でフルサイズにするためのレスポンシブ対応 */
+    .container { max-width: 500px; margin: 0 auto; background: #ffffff; padding: 15px; box-sizing: border-box; min-height: 100vh; }
+    @media (min-width: 500px) {
+      body { padding: 20px; }
+      .container { min-height: auto; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); padding: 25px; }
+    }
+
+    h2 { text-align: center; color: #444; font-size: 20px; margin-top: 10px; margin-bottom: 20px; font-weight: 700; }
+    
+    /* 🔴🟢 接続ステータスバーのデザイン */
+    .status-bar { text-align: center; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: bold; margin-bottom: 15px; }
+    .status-online { background-color: #d9ead3; color: #274e13; border: 1px solid #6aa84f; }
+    .status-offline { background-color: #fce5cd; color: #783f04; border: 1px solid #e06666; }
+
+    .tab-container { display: flex; margin-bottom: 20px; background: #eee; padding: 4px; border-radius: 8px; }
+    .tab { flex: 1; text-align: center; padding: 12px 10px; cursor: pointer; font-weight: bold; font-size: 14px; color: #666; border-radius: 6px; transition: 0.2s; }
+    .tab.active { background: #ffffff; color: #705e9e; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    
+    .form-page { display: none; }
+    .form-page.active { display: block; }
+    
+    .section { background: #fafbfc; border: 1px solid #eef1f5; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+    .section-title { font-weight: bold; color: #705e9e; margin-bottom: 15px; border-bottom: 2px solid #e1dbec; padding-bottom: 6px; font-size: 14px; text-transform: uppercase; }
+    
+    label { display: block; margin-bottom: 6px; font-size: 13px; color: #555; font-weight: 600; }
+    input, select { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid #ccd2db; border-radius: 8px; box-sizing: border-box; font-size: 16px; background-color: #fff; transition: border-color 0.2s; }
+    input:focus, select:focus { border-color: #8e7cc3; outline: none; box-shadow: 0 0 0 3px rgba(142, 124, 195, 0.2); }
+    input[readonly] { background-color: #eef1f6; color: #666; cursor: not-allowed; }
+    
+    /* 50音ボタンのデザイン (グリッドレイアウトで崩れを防止) */
+    .row-50on { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 15px; background: #f0edf6; padding: 10px; border-radius: 10px; }
+    .btn-50on { padding: 12px 0; width: 100%; text-align: center; background: white; border: 1px solid #dcd6eb; border-radius: 6px; font-size: 14px; font-weight: bold; color: #555; cursor: pointer; box-sizing: border-box; }
+    .btn-50on:active, .btn-50on.active { background: #8e7cc3; color: white; border-color: #8e7cc3; }
+    
+    .btn { width: 100%; padding: 16px; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.2s; margin-top: 10px; box-sizing: border-box; }
+    .btn-primary { background-color: #8e7cc3; }
+    .btn-primary:hover { background-color: #705e9e; }
+    .btn-success { background-color: #6aa84f; }
+    .btn-success:hover { background-color: #55873f; }
+    
+    .loader { display: none; text-align: center; color: #8e7cc3; font-weight: bold; margin: 15px 0; font-size: 14px; background: #f0edf6; padding: 15px; border-radius: 10px; border: 1px dashed #705e9e; line-height: 1.6; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>📱 顧客カルテシステム</h2>
+  
+  <!-- 🟢🔴 接続状態をビジュアル表示するエリア -->
+  <div id="connectionStatus" class="status-bar status-offline">🔌 スプレッドシートと切断されています (オフライン起動)</div>
+
+  <div class="tab-container">
+    <div class="tab active" onclick="switchTab('existingPage', this)">既存顧客カルテ</div>
+    <div class="tab" onclick="switchTab('newPage', this)">新規入会登録</div>
+  </div>
+
+  <div id="globalLoader" class="loader">データを通信中...</div>
+
+  <!-- 【既存顧客カルテ ページ】 -->
+  <div id="existingPage" class="form-page active">
+    <div class="section">
+      <div class="section-title">🔍 1. 爆速顧客検索</div>
+      
+      <label>① 50音行で絞り込み</label>
+      <div class="row-50on">
+        <div class="btn-50on" onclick="filterBy50On('ア', this)">ア行</div>
+        <div class="btn-50on" onclick="filterBy50On('カ', this)">カ行</div>
+        <div class="btn-50on" onclick="filterBy50On('サ', this)">サ行</div>
+        <div class="btn-50on" onclick="filterBy50On('タ', this)">タ行</div>
+        <div class="btn-50on" onclick="filterBy50On('ナ', this)">ナ行</div>
+        <div class="btn-50on" onclick="filterBy50On('ハ', this)">ハ行</div>
+        <div class="btn-50on" onclick="filterBy50On('マ', this)">マ行</div>
+        <div class="btn-50on" onclick="filterBy50On('ヤ', this)">ヤ行</div>
+        <div class="btn-50on" onclick="filterBy50On('ラ', this)">ラ行</div>
+        <div class="btn-50on" onclick="filterBy50On('ワ', this)">ワ行</div>
+      </div>
+      
+      <label>② 名前・カナを入力して検索（部分一致）</label>
+      <input type="text" id="searchKeyword" oninput="filterByKeyword()" placeholder="例: 升屋 / マスヤ">
+
+      <label>③ 絞り込まれたリストから選択</label>
+      <select id="customerSelect" onchange="loadCustomerInfo()">
+        <option value="">▼ タップして名前を選択</option>
+      </select>
+      <button class="btn" style="background:#bbb; padding:8px; font-size:12px; margin-top:0;" onclick="resetSearch()">検索リセット（全表示）</button>
+    </div>
+
+    <!-- 顧客選択後に自動表示されるエリア -->
+    <div id="existingCustomerForm" style="display: none;">
+      <div class="section">
+        <div class="section-title">👤 2. 基本情報の確認・修正</div>
+        <label>顧客ID (自動)</label>
+        <input type="text" id="e_id" readonly>
+        <label>氏名</label>
+        <input type="text" id="e_name">
+        <label>カナ</label>
+        <input type="text" id="e_kana">
+        <label>所属店舗</label>
+        <select id="e_store">
+          <!-- GASの getInitialData から動的自動生成 -->
+        </select>
+        <label>状態</label>
+        <select id="e_status">
+          <!-- GASの getInitialData から動的自動生成 -->
+        </select>
+        <label>入会年月日</label>
+        <input type="date" id="e_indate">
+        <label>退会年月日</label>
+        <input type="date" id="e_outdate">
+        
+        <button class="btn btn-success" onclick="submitMasterUpdate()">基本情報を上書き保存する</button>
+      </div>
+
+      <div class="section">
+        <div class="section-title">💰 3. 明細・お支払いの追加</div>
+        <label>担当スタッフ</label>
+        <select id="d_staff">
+          <!-- GASの getInitialData から動的自動生成 -->
+        </select>
+        <label>決済方法</label>
+        <select id="d_payment">
+          <!-- GASの getInitialData から動的自動生成 -->
+        </select>
+        <label>会費分類</label>
+        <select id="d_category">
+          <!-- GASの getInitialData から動的自動生成 -->
+        </select>
+        <label>コース区分</label>
+        <select id="d_course">
+          <!-- GASの getInitialData から動的自動生成 -->
+        </select>
+        <label>金額1 (税込)</label>
+        <input type="number" id="d_amount1" placeholder="金額を入力" oninput="calculateTotal('d')">
+        <label>金額2 (税込)</label>
+        <input type="number" id="d_amount2" placeholder="無ければ空欄でOK" oninput="calculateTotal('d')">
+        <label>合計金額 (自動計算)</label>
+        <input type="number" id="d_total" readonly style="background-color: #fce5cd; font-weight: bold; color: #b45f06;" placeholder="0">
+        <label>変更年月日 (必須)</label>
+        <input type="date" id="d_date">
+        
+        <button class="btn btn-primary" onclick="submitDetailAdd()">この内容で明細を追加する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 【新規入会登録 ページ】 -->
+  <div id="newPage" class="form-page">
+    <div class="section">
+      <div class="section-title">✨ 新規顧客マスター登録</div>
+      <label>氏名 (必須)</label>
+      <input type="text" id="n_name" placeholder="例: 山田 花子">
+      <label>カナ</label>
+      <input type="text" id="n_kana" placeholder="例: ヤマダ ハナコ">
+      <label>所属店舗</label>
+      <select id="n_store">
+        <!-- GASの getInitialData から動的自動生成 -->
+      </select>
+      <label>状態</label>
+      <select id="n_status">
+        <!-- GASの getInitialData から動的自動生成 -->
+      </select>
+      <label>入会年月日</label>
+      <input type="date" id="n_indate">
+      <label>退会年月日</label>
+      <input type="date" id="n_outdate">
+      <label>担当スタッフ</label>
+      <select id="n_staff"></select>
+      <label>決済方法</label>
+      <select id="n_payment"></select>
+      <label>会費分類</label>
+      <select id="n_category"></select>
+      <label>コース区分</label>
+      <select id="n_course"></select>
+      <label>金額1 (税込)</label>
+      <input type="number" id="n_amount1" placeholder="金額を入力" oninput="calculateTotal('n')">
+      <label>金額2 (税込)</label>
+      <input type="number" id="n_amount2" placeholder="無ければ空欄でOK" oninput="calculateTotal('n')">
+      <label>合計金額 (自動計算)</label>
+      <input type="number" id="n_total" readonly style="background-color: #fce5cd; font-weight: bold; color: #b45f06;" placeholder="0">
+      <label>変更年月日 (必須)</label>
+      <input type="date" id="n_changedate">
+      
+      <button class="btn btn-primary" onclick="submitNewCustomer()">新しくマスターに登録する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // =========================================================================
+  // ★最重要：新しくデプロイしてコピーした最新のURLをここに貼り付けます
+  // =========================================================================
+  var GAS_URL = "https://script.google.com/macros/s/AKfycbzdB2hbvUWqFEY55HVjr4h1LOcVhNhQ0Y2Yuv7RcxfaPjF5C5L6iYRZA_NN-NHspA/exec";
+  // =========================================================================
+
+  var allCustomers = []; // 全データを保持する配列
+  var current50on = "";  // 選択中の50音行
+
+  function calculateTotal(prefix) {
+    var a1 = parseFloat(document.getElementById(prefix + '_amount1').value) || 0;
+    var a2 = parseFloat(document.getElementById(prefix + '_amount2').value) || 0;
+    document.getElementById(prefix + '_total').value = a1 + a2;
+  }
+
+  function switchTab(pageId, tabEl) {
+    document.querySelectorAll('.form-page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(pageId).classList.add('active');
+    tabEl.classList.add('active');
+  }
+
+  // アプリ起動時の初期処理
+  window.onload = function() {
+    if(!GAS_URL.startsWith("http") || GAS_URL.includes("ここに")) {
+      showLoader("⚠️ エラー：GAS_URL の設定が完了していません。");
+      return;
+    }
+    
+    showLoader("🌸 MUSE FIT 顧客カルテ<br>最新データを同期中...");
+    
+    fetch(GAS_URL + "?action=getInitialData")
+      .then(response => {
+        if(!response.ok) {
+          throw new Error("HTTPエラー (ステータス: " + response.status + ")");
+        }
+        return response.json();
+      })
+      .then(res => {
+        hideLoader();
+        if(res.success) {
+          // 🟢 接続成功時：ステータスバーを「オンライン」にして緑色にする
+          var sBar = document.getElementById("connectionStatus");
+          sBar.innerText = "🟢 スプレッドシートと正常に同期しています (オンライン)";
+          sBar.className = "status-bar status-online";
+
+          // 顧客リストの同期（実データが空でも絶対にエラーを吐かないよう空配列でガード）
+          allCustomers = res.customers || []; 
+          allCustomers.sort();
+          updateCustomerSelect(allCustomers);
+          
+          // =========================================================================
+          // 🛡️ 【新・超安全ガード】GAS側から送られてきたプロパティが万が一空っぽ（undefined）
+          // であった場合にも、プログラムを絶対にクラッシュさせずに、予備データで補完して
+          // スマホ画面を完全に動作可能にする強力な自己修復フォールバックです。
+          // =========================================================================
+          var stores     = res.stores && res.stores.length > 0 ? res.stores : ['並木', '横川', 'CHANGE FIT'];
+          var statuses   = res.statuses && res.statuses.length > 0 ? res.statuses : ['入会中', '休会', '退会'];
+          var staff      = res.staff && res.staff.length > 0 ? res.staff : ['有田', '吉崎', '北山', 'その他'];
+          var payments   = res.payments && res.payments.length > 0 ? res.payments : ['ストアーズ', 'トワライズ', 'PAYSYS', '会費PAY', '現金'];
+          var categories = res.categories && res.categories.length > 0 ? res.categories : ['月会費', '入会金', '休会費', 'その他'];
+          var courses    = res.courses && res.courses.length > 0 ? res.courses : ['フルタイム', 'デイタイム', 'ナイト', '回数券'];
+
+          // ① 「店舗」セレクトボックス同期
+          var eStore = document.getElementById('e_store');
+          var nStore = document.getElementById('n_store');
+          eStore.innerHTML = ""; nStore.innerHTML = "";
+          stores.forEach(st => {
+            eStore.appendChild(new Option(st, st));
+            nStore.appendChild(new Option(st, st));
+          });
+          
+          // ② 「状態」セレクトボックス同期
+          var eStatus = document.getElementById('e_status');
+          var nStatus = document.getElementById('n_status');
+          eStatus.innerHTML = ""; nStatus.innerHTML = "";
+          statuses.forEach(st => {
+            eStatus.appendChild(new Option(st, st));
+            nStatus.appendChild(new Option(st, st));
+          });
+
+          // ③ 「担当スタッフ」セレクトボックス同期
+          var sSelect = document.getElementById('d_staff');
+          var nStaff = document.getElementById('n_staff');
+          sSelect.innerHTML = ""; nStaff.innerHTML = "";
+          staff.forEach(s => { sSelect.appendChild(new Option(s, s)); nStaff.appendChild(new Option(s, s)); });
+          
+          // ④ 「決済方法」セレクトボックス同期
+          var pSelect = document.getElementById('d_payment');
+          var nPayment = document.getElementById('n_payment');
+          pSelect.innerHTML = ""; nPayment.innerHTML = "";
+          payments.forEach(p => { pSelect.appendChild(new Option(p, p)); nPayment.appendChild(new Option(p, p)); });
+
+          // ⑤ 「会費分類」セレクトボックス同期
+          var catSelect = document.getElementById('d_category');
+          var nCat = document.getElementById('n_category');
+          catSelect.innerHTML = ""; nCat.innerHTML = "";
+          categories.forEach(cat => { catSelect.appendChild(new Option(cat, cat)); nCat.appendChild(new Option(cat, cat)); });
+
+          // ⑥ 「コース区分」セレクトボックス同期
+          var crsSelect = document.getElementById('d_course');
+          var nCourse = document.getElementById('n_course');
+          crsSelect.innerHTML = ""; nCourse.innerHTML = "";
+          courses.forEach(c => { crsSelect.appendChild(new Option(c, c)); nCourse.appendChild(new Option(c, c)); });
+        } else {
+          throw new Error("GAS側エラー: " + res.message);
+        }
+      })
+      .catch(err => {
+        // 🔴 接続に完全失敗、あるいはデータ展開中に予期せぬエラーが起きた場合
+        hideLoader();
+        console.warn("完全に切断されたため、安全用デフォルトマスタで起動します:", err);
+        
+        var sBar = document.getElementById("connectionStatus");
+        sBar.innerText = "🔴 オフライン起動中 (スプレッドシートへの登録はできません)";
+        sBar.className = "status-bar status-offline";
+
+        // 各プルダウンに基本の選択肢を安全に流し込み、スタッフ画面のフリーズを100%防ぎます
+        var defaultStores = ['並木', '横川', 'CHANGE FIT'];
+        var defaultStatuses = ['入会中', '休会', '退会'];
+        var defaultStaff = ['有田', '吉崎', '北山', 'その他'];
+        var defaultPayments = ['ストアーズ', 'トワライズ', 'PAYSYS', '会費PAY', '現金'];
+        var defaultCategories = ['月会費', '入会金', '休会費', 'その他'];
+        var defaultCourses = ['フルタイム', 'デイタイム', 'ナイト', '回数券'];
+
+        var eStore = document.getElementById('e_store');
+        var nStore = document.getElementById('n_store');
+        eStore.innerHTML = ""; nStore.innerHTML = "";
+        defaultStores.forEach(st => {
+          eStore.appendChild(new Option(st, st));
+          nStore.appendChild(new Option(st, st));
+        });
+        
+        var eStatus = document.getElementById('e_status');
+        var nStatus = document.getElementById('n_status');
+        eStatus.innerHTML = ""; nStatus.innerHTML = "";
+        defaultStatuses.forEach(st => {
+          eStatus.appendChild(new Option(st, st));
+          nStatus.appendChild(new Option(st, st));
+        });
+
+        var sSelect = document.getElementById('d_staff');
+        var nStaff = document.getElementById('n_staff');
+        sSelect.innerHTML = ""; nStaff.innerHTML = "";
+        defaultStaff.forEach(s => { sSelect.appendChild(new Option(s, s)); nStaff.appendChild(new Option(s, s)); });
+        
+        var pSelect = document.getElementById('d_payment');
+        var nPayment = document.getElementById('n_payment');
+        pSelect.innerHTML = ""; nPayment.innerHTML = "";
+        defaultPayments.forEach(p => { pSelect.appendChild(new Option(p, p)); nPayment.appendChild(new Option(p, p)); });
+
+        var catSelect = document.getElementById('d_category');
+        var nCat = document.getElementById('n_category');
+        catSelect.innerHTML = ""; nCat.innerHTML = "";
+        defaultCategories.forEach(cat => { catSelect.appendChild(new Option(cat, cat)); nCat.appendChild(new Option(cat, cat)); });
+
+        var crsSelect = document.getElementById('d_course');
+        var nCourse = document.getElementById('n_course');
+        crsSelect.innerHTML = ""; nCourse.innerHTML = "";
+        defaultCourses.forEach(c => { crsSelect.appendChild(new Option(c, c)); nCourse.appendChild(new Option(c, c)); });
+      });
+  };
+
+  // セレクトボックスの表示を更新する
+  function updateCustomerSelect(list) {
+    var cSelect = document.getElementById('customerSelect');
+    cSelect.innerHTML = '<option value="">▼ タップして名前を選択</option>';
+    list.forEach(c => {
+      var strName = (typeof c === 'object' && c !== null) ? (c.name || String(c)) : String(c);
+      if (strName) {
+        cSelect.appendChild(new Option(strName, strName));
+      }
+    });
+  }
+
+  // 50音ボタンによる絞り込みの判定（サ行などの濁音・半濁音にも100%完全対応）
+  function get50OnReg(char) {
+    if(char === 'ア') return /^[ア-オあ-お]/;
+    if(char === 'カ') return /^[カ-コが-ごか-こ]/;
+    if(char === 'サ') return /^[サ-ソざ-ぞさ-そ]/; 
+    if(char === 'タ') return /^[タ-トだ-どた-と]/;
+    if(char === 'ナ') return /^[ナ-ノな-の]/;
+    if(char === 'ハ') return /^[ハ-ホば-ぼぱ-ぽは-ほ]/;
+    if(char === 'マ') return /^[マ-モま-も]/;
+    if(char === 'ヤ') return /^[ヤ-ヨや-よ]/;
+    if(char === 'ラ') return /^[ラ-ロら-ろ]/;
+    if(char === 'ワ') return /^[ワヲンわをん]/;
+    return /.*/;
+  }
+
+  function filterBy50On(char, el) {
+    var isActive = el.classList.contains('active');
+    document.querySelectorAll('.btn-50on').forEach(b => b.classList.remove('active'));
+    
+    if(isActive) {
+      current50on = "";
+    } else {
+      el.classList.add('active');
+      current50on = char;
+    }
+    applyFilter();
+  }
+
+  function filterByKeyword() {
+    applyFilter();
+  }
+
+  // 【爆速複合検索エンジン】：50音ボタンと部分一致キーワードの「掛け合わせ絞り込み」
+  function applyFilter() {
+    var keyword = document.getElementById('searchKeyword').value.trim().toLowerCase();
+    var filtered = allCustomers.filter(c => {
+      var nameStr = "";
+      var kanaStr = "";
+      
+      if (typeof c === 'object' && c !== null) {
+        nameStr = String(c.name || String(c)).replace(/[\s\u3000]+/g, "");
+        kanaStr = String(c.kana || "").replace(/[\s\u3000]+/g, "");
+      } else {
+        nameStr = String(c).replace(/[\s\u3000]+/g, "");
+      }
+      
+      var matchKeyword = true;
+      var match50on = true;
+      
+      if(keyword) {
+        // 名前かカナのどちらかにキーワードが含まれていればOK
+        matchKeyword = nameStr.toLowerCase().includes(keyword) || kanaStr.toLowerCase().includes(keyword);
+      }
+      if(current50on) {
+        var reg = get50OnReg(current50on);
+        // カナがあればカナで判定、なければ名前で判定
+        match50on = kanaStr ? reg.test(kanaStr) : reg.test(nameStr);
+      }
+      return matchKeyword && match50on;
+    });
+    updateCustomerSelect(filtered);
+  }
+
+  function resetSearch() {
+    document.getElementById('searchKeyword').value = "";
+    document.querySelectorAll('.btn-50on').forEach(b => b.classList.remove('active'));
+    current50on = "";
+    updateCustomerSelect(allCustomers);
+    document.getElementById('existingCustomerForm').style.display = 'none';
+  }
+
+  function loadCustomerInfo() {
+    var name = document.getElementById('customerSelect').value;
+    var formSec = document.getElementById('existingCustomerForm');
+    if(!name) { formSec.style.display = 'none'; return; }
+
+    showLoader("お客様のデータを読み込み中...");
+    fetch(GAS_URL + "?action=getCustomerData&name=" + encodeURIComponent(name))
+      .then(r => r.json())
+      .then(res => {
+        hideLoader();
+        if(res.success && res.data) {
+          document.getElementById('e_id').value = res.data.id;
+          document.getElementById('e_name').value = res.data.name;
+          document.getElementById('e_kana').value = res.data.kana;
+          document.getElementById('e_store').value = res.data.store;
+          document.getElementById('e_status').value = res.data.status;
+          document.getElementById('e_indate').value = res.data.inDate;
+          document.getElementById('e_outdate').value = res.data.outDate;
+          
+          // 明細データ（直近）があればセットする
+          if (res.data.staff) document.getElementById('d_staff').value = res.data.staff;
+          if (res.data.payment) document.getElementById('d_payment').value = res.data.payment;
+          if (res.data.category) document.getElementById('d_category').value = res.data.category;
+          if (res.data.course) document.getElementById('d_course').value = res.data.course;
+          
+          if (res.data.amount1 !== undefined && res.data.amount1 !== "") {
+            document.getElementById('d_amount1').value = res.data.amount1;
+          } else {
+            document.getElementById('d_amount1').value = "";
+          }
+          if (res.data.amount2 !== undefined && res.data.amount2 !== "") {
+            document.getElementById('d_amount2').value = res.data.amount2;
+          } else {
+            document.getElementById('d_amount2').value = "";
+          }
+          calculateTotal('d');
+          
+          formSec.style.display = 'block';
+        }
+      });
+  }
+
+  function submitNewCustomer() {
+    var name = document.getElementById('n_name').value;
+    if(!name) { alert("氏名は必須入力です。"); return; }
+    sendPostData({
+      action: "registerCustomer",
+      name: name,
+      kana: document.getElementById('n_kana').value,
+      store: document.getElementById('n_store').value,
+      status: document.getElementById('n_status').value,
+      inDate: document.getElementById('n_indate').value,
+      outDate: document.getElementById('n_outdate').value,
+      staff: document.getElementById('n_staff').value,
+      payment: document.getElementById('n_payment').value,
+      category: document.getElementById('n_category').value,
+      course: document.getElementById('n_course').value,
+      amount1: document.getElementById('n_amount1').value,
+      amount2: document.getElementById('n_amount2').value,
+      changeDate: document.getElementById('n_changedate').value
+    }, function() { location.reload(); });
+  }
+
+  function submitMasterUpdate() {
+    var id = document.getElementById('e_id').value;
+    var name = document.getElementById('e_name').value;
+    if(!id || !name) { alert("顧客データが正しく選択されていません。"); return; }
+    sendPostData({
+      action: "updateCustomer",
+      id: id,
+      name: name,
+      kana: document.getElementById('e_kana').value,
+      store: document.getElementById('e_store').value,
+      status: document.getElementById('e_status').value,
+      inDate: document.getElementById('e_indate').value,
+      outDate: document.getElementById('e_outdate').value
+    }, function() { location.reload(); });
+  }
+
+  function submitDetailAdd() {
+    var dateVal = document.getElementById('d_date').value;
+    if(!dateVal) { alert("変更年月日は必須項目です。"); return; }
+    sendPostData({
+      action: "addDetail",
+      id: document.getElementById('e_id').value,
+      staff: document.getElementById('d_staff').value,
+      payment: document.getElementById('d_payment').value,
+      category: document.getElementById('d_category').value,
+      course: document.getElementById('d_course').value,
+      amount1: document.getElementById('d_amount1').value,
+      amount2: document.getElementById('d_amount2').value,
+      changeDate: dateVal
+    }, function() {
+      document.getElementById('d_amount1').value = "";
+      document.getElementById('d_amount2').value = "";
+      document.getElementById('d_date').value = "";
+    });
+  }
+
+  function sendPostData(data, callback) {
+    // オフライン状態の時は、送信を未然に防ぎユーザーに案内します
+    var sBar = document.getElementById("connectionStatus");
+    if (sBar.classList.contains("status-offline")) {
+      alert("⚠️ 現在オフラインモードのため、データベースへの書き込みはできません。\nスプレッドシート（GAS）のデプロイ設定を修正し、緑色の『オンライン』状態にしてください。");
+      return;
+    }
+
+    showLoader("データベースへ通信中...");
+    fetch(GAS_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    }).then(() => {
+      hideLoader();
+      alert("処理が正常に完了しました。");
+      if(callback) callback();
+    }).catch(err => {
+      hideLoader();
+      alert("エラーが発生しました: " + err);
+    });
+  }
+
+  function showLoader(text) {
+    var l = document.getElementById('globalLoader');
+    l.innerHTML = text;
+    l.style.display = 'block';
+  }
+  function hideLoader() {
+    document.getElementById('globalLoader').style.display = 'none';
+  }
+</script>
+</body>
+</html>
